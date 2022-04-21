@@ -65,13 +65,20 @@ class PyAuto(object):
 			return wrap
 
 	def clear_text(self, pos = None, duration = 1):
+		pos = self.wrap_pos(pos)
 		if pos is not None:
 			pyautogui.moveTo(pos[0], pos[1], duration = duration, tween = pyautogui.easeInOutQuad)
 		pyautogui.click()
 		pyautogui.hotkey('ctrl', 'a')
 		pyautogui.press('delete')
 
-	def write_text(self, data, pos = None, clear = True, duration = 1, interval = 0.1):
+	def wrap_pos(self, pos):
+		if type(pos) == str:
+			pos = self.get_pos(pos)
+		return pos
+
+	def write_text(self, data, pos = None, clear = True, duration = 0, interval = 0):
+		pos = self.wrap_pos(pos)
 		if pos is not None:
 			pyautogui.moveTo(pos[0], pos[1], duration = duration, tween = pyautogui.easeInOutQuad)
 			pos = None
@@ -81,6 +88,7 @@ class PyAuto(object):
 		pyautogui.typewrite(data, interval = interval)
 
 	def calc_sumall(self, pos, size = 10):
+		pos = self.wrap_pos(pos)
 		x = pos[0]
 		y = pos[1]
 		max_pos = pyautogui.size()
@@ -116,6 +124,78 @@ class PyAuto(object):
 		t_sumall = self.calc_sumall(pos)
 		return t_sumall == sumall
 
+	def set_conf_map(self, ttype, name):
+		x, y = pyautogui.position()
+		if ttype == "pos":
+			print(self.conf_map[ttype][name], [x, y])
+			self.conf_map[ttype][name] = [x, y]
+		elif ttype == "color":
+			color = pyautogui.pixel(x, y)
+			self.conf_map[ttype][name] = [[x, y], color]
+		elif ttype == "area":
+			sumall = self.calc_sumall((x, y))
+			self.conf_map[ttype][name] = [[x, y], sumall]
+
+	def set_conf_file(self, conf_file, ttype, name, x, y, value = None):
+		if ttype == "pos":
+			content = "%s. (%d, %d)"%(name, x, y)
+		elif ttype == "color":
+			content = "%s. (%d, %d) -> %s"%(name, x, y, repr(tuple(value)))
+		elif ttype == "area":
+			content = "%s. (%d, %d) -> %d"%(name, x, y, value)
+		else:
+			return
+		print("record: " + content)
+		self.appendfile(conf_file, "%s: "%(ttype) + content + "\n")
+
+
+	def reconfig(self):
+
+		conf_file = input("model config:").strip()
+		if conf_file == "":
+			conf_file = "pyauto.conf"
+		if os.path.exists(conf_file) == False:
+			print('not exists')
+			return
+		self.load_config(conf_file)
+		ch = input("all or select, (1:all, 0:select. default->0)? ").strip()
+		if ch == "1":
+			for ttype in self.conf_map.keys():
+				if len(self.conf_map[ttype].keys()) > 0:
+					for name in self.conf_map[ttype].keys():
+						value = input("%s.%s(%s): "%(ttype, name, repr(self.conf_map[ttype][name])))
+						if value == "exit":
+							break
+						if value != "":
+							continue
+						self.set_conf_map(ttype, name)
+						print("  change(%s.%s) -> (%s)"%(ttype, name, repr(self.conf_map[ttype][name])))
+		else:
+			while True:
+				ttype = input("type: ").strip()
+				if ttype == "exit":
+					break
+				old_data = repr(self.conf_map[ttype][name])
+				self.set_conf_map(ttype, name)
+				print("  change(%s.%s) %s -> (%s)"%(ttype, name, old_data, repr(self.conf_map[ttype][name])))
+
+		new_conf = input("new conf: ").strip()
+		if new_conf != "":
+			conf_file = new_conf
+		self.writefile(conf_file, "")
+
+		for ttype in self.conf_map.keys():
+			if len(self.conf_map[ttype].keys()) > 0:
+				for name in self.conf_map[ttype].keys():
+					items = self.conf_map[ttype][name]
+					print(ttype, name, items)
+					if ttype != "pos":
+						[x, y], value = items
+					else:
+						[x, y] = items
+						value = None
+					self.set_conf_file(conf_file, ttype, name, x, y, value)
+
 	def gen_config(self):
 		conf_file = ""
 		while True:
@@ -124,13 +204,14 @@ class PyAuto(object):
 			print("2. pick pos")
 			print("3. pick color")
 			print("4. pick area")
-			print("5. return")
+			print("5. reconfig")
+			print("99. return")
 			choice = input("choice: ").strip()
 			if choice == "":
 				break
 
 			choice = int(choice)
-			if choice not in [1, 5] and conf_file == "":
+			if choice not in [1, 5, 6] and conf_file == "":
 				conf_file = input("config file:").strip()
 				if conf_file == "":
 					conf_file = "pyauto.conf"
@@ -155,9 +236,7 @@ class PyAuto(object):
 					if name == "exit":
 						break
 					x, y = pyautogui.position()
-					content = "%s. (%d, %d)"%(name, x, y)
-					print("record: " + content)
-					self.appendfile(conf_file, "pos: " + content + "\n")
+					self.set_conf_file(conf_file, "pos", name, x, y)
 
 			elif choice == 3:
 				while True:
@@ -166,9 +245,7 @@ class PyAuto(object):
 						break
 					x, y = pyautogui.position()
 					color = pyautogui.pixel(x, y)
-					content = "%s. (%d, %d) -> %s"%(name, x, y, repr(color))
-					print("record: " + content)
-					self.appendfile(conf_file, "color: " + content + "\n")
+					self.set_conf_file(conf_file, "color", name, x, y, color)
 
 			elif choice == 4:
 				while True:
@@ -176,15 +253,14 @@ class PyAuto(object):
 					if name == "exit":
 						break
 					x, y = pyautogui.position()
-					color = pyautogui.pixel(x, y)
 					sumall = self.calc_sumall((x, y))
-					content = "%s. (%d, %d) -> %d"%(name, x, y, sumall)
-					print("record: " + content)
-					self.appendfile(conf_file, "area: " + content + "\n")
+					self.set_conf_file(conf_file, "area", name, x, y, sumall)
 
 			elif choice == 5:
-				break
+				self.reconfig()
 
+			elif choice == 99:
+				break
 			else:
 				print('error')
 
@@ -208,17 +284,30 @@ class PyAuto(object):
 		if type(pos) == str:
 			return self.conf_map["area"][pos][1]
 		else:
-			return self.calc_sumall(pos[0], pos[1], size = size)
+			return self.calc_sumall(pos, size = size)
 
-	def pixelMatchesColorEx(self, pos, name):
+	def pixelMatchesColorEx(self, pos, name = None):
 		if type(pos) == str:
+			if name is None:
+				name = pos
 			pos = self.get_pos(pos)
-		return self.pixelMatchesColor(pos[0], pos[1], self.get_color(name))
+		if type(name) == str:
+			color = self.get_color(name)
+		else:
+			color = name
+		#print(pos[0], pos[1], color, self.pixel(pos))
+		return self.pixelMatchesColor(pos[0], pos[1], color)
 
-	def areaMatchesColorEx(self, pos, name, size = 10):
+	def areaMatchesColorEx(self, pos, name = None, size = 10):
 		if type(pos) == str:
+			if name is None:
+				name = pos
 			pos = self.get_pos(pos)
-		return self.calc_sumall(pos[0], pos[1], size = size) == self.get_area(name, size = size)
+		if type(name) == str:
+			sumall = self.get_area(name, size = size)
+		else:
+			sumall = name
+		return self.calc_sumall(pos, size = size) == self.get_area(name, size = size)
 
 	def load_config(self, conf = "pyauto.conf"):
 		content = self.readfile(conf).strip()
@@ -258,6 +347,7 @@ class PyAuto(object):
 				name = items[0].strip()
 				line = items[1].strip()
 				items = line.split(" -> ")
+				items[0] = items[0].strip()[1:-1]
 				x, y = items[0].split(", ")
 				x, y = int(x), int(y)
 				sumall = int(items[1].strip())
@@ -273,8 +363,6 @@ class PyAuto(object):
 			return fd.write(data)
 
 	def get_text(self, b_pos, e_pos, lang = "eng", img_path = None):
-		b_pos = self.get_pos(b_pos)
-		e_pos = self.get_pos(e_pos)
 		im = self.get_pic(b_pos, e_pos)
 		if img_path is not None:
 			im.save(img_path)
@@ -285,12 +373,43 @@ class PyAuto(object):
 
 		text = pytesseract.image_to_string(im, lang=lang)
 		#print(text)
-		return text.strip()
+		return text.strip()	
+
+	def wrap_args(self, args):
+		if len(args) > 0:
+			if type(args[0]) == str:
+				pos = self.get_pos(args[0])
+				#print(args)
+				#print(pos)
+				#print([pos[0], pos[1]] + list(args[1:]))
+				return [pos[0], pos[1]] + list(args[1:])
+			elif type(args[0]) in [list, tuple]:
+				pos = args[0]
+				return [pos[0], pos[1]] + list(args[1:])
+		return args
+
+	def moveTo(self, *args, **kwrds):
+		args = self.wrap_args(args)
+		return pyautogui.moveTo(*args, **kwrds)
+
+	def click(self, *args, **kwrds):
+		args = self.wrap_args(args)
+		return pyautogui.click(*args, **kwrds)
+
+	def pixel(self, *args, **kwrds):
+		args = self.wrap_args(args)
+		return pyautogui.pixel(*args, **kwrds)
+
+	def pixelMatchesColor(self, *args, **kwrds):
+		args = self.wrap_args(args)
+		return pyautogui.pixelMatchesColor(*args, **kwrds)
 
 	def appendfile(self, filename, data, md = "a+", encoding = "utf-8"):
 		self.writefile(filename, data, md, encoding)
 
 	def get_pic(self, b_pos = None, e_pos = None):
+		b_pos = self.wrap_pos(b_pos)
+		e_pos = self.wrap_pos(e_pos)
 		if b_pos is None:
 			pos = (0, 0)
 		if e_pos is None:
@@ -315,20 +434,22 @@ def test():
 	pyauto.gen_config()
 	conf_map = pyauto.load_config("test.conf")
 	print(conf_map)
-	input(":")
-	username = "userqqq@qq.com"
-	password = "pass111"
+	#input(":")
+	username = "tesd@qq.com"
+	password = "qwe"
 
 	flush_pos = pyauto.get_pos("flush")
 
 	pic_pos1 = pyauto.get_pos("pic_b")
 	pic_pos2 = pyauto.get_pos("pic_e")
 
-	pyauto.moveTo(flush_pos[0], flush_pos[1])
+	pyauto.moveTo("flush")
 	pyauto.click()
 	time.sleep(1)
+
+	pyauto.moveTo("ready")
 	while True:
-		if pyauto.pixelMatchesColorEx("ready", "ready") == True:
+		if pyauto.areaMatchesColorEx("ready") == True:
 			print("ready")
 			break
 		print("in flush")
@@ -337,19 +458,19 @@ def test():
 	pyauto.moveTo(flush_pos[0], flush_pos[1] + 0x200)
 	time.sleep(1)
 
-	pyauto.write_text(username, pyauto.get_pos("user"))
-	pyauto.write_text(password, pyauto.get_pos("pass"))
+	pyauto.write_text(username, "user")#pyauto.get_pos("user"))
+	pyauto.write_text(password, "pass")#pyauto.get_pos("pass"))
 
-	key_pos = pyauto.get_pos("enter")
+	#key_pos = pyauto.get_pos("enter")
 
-	pyauto.moveTo(key_pos[0], key_pos[1], duration=2, tween=pyautogui.easeOutQuad)
+	pyauto.moveTo("enter", duration=2, tween=pyautogui.easeOutQuad)
 	pyauto.click()
 
 	time.sleep(2)
 	while True:
-		if pyauto.pixelMatchesColorEx("warn", "warn") == True:
-			text = pyauto.get_text("warn", "warn_e")#, lang = 'chi_sim', img_path = "chk.png")
-			print("text:", text)
+		if pyauto.pixelMatchesColorEx("warn") == True:
+			#text = pyauto.get_text("warn", "warn_e")#, lang = 'chi_sim', img_path = "chk.png")
+			#print("text:", text)
 			break
 		print("check fail, continue")
 		time.sleep(1)
