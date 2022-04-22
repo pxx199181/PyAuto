@@ -42,6 +42,7 @@ class PyAuto(object):
 		self.conf_map["pos"] 	= {}
 		self.conf_map["color"] 	= {}
 		self.conf_map["area"] 	= {}
+		self.globals = {}
 
 		if conf_file is not None:
 			self.load_config(conf_file)
@@ -82,9 +83,9 @@ class PyAuto(object):
 		if pos is not None:
 			pyautogui.moveTo(pos[0], pos[1], duration = duration, tween = pyautogui.easeInOutQuad)
 			pos = None
+		pyautogui.click()
 		if clear == True:
 			self.clear_text(pos = pos, duration = duration)
-		pyautogui.click()
 		pyautogui.typewrite(data, interval = interval)
 
 	def calc_sumall(self, pos, size = 10):
@@ -92,31 +93,21 @@ class PyAuto(object):
 		x = pos[0]
 		y = pos[1]
 		max_pos = pyautogui.size()
-		x_b = x - size
-		x_e = x + size
-		y_b = y - size
-		y_e = y + size
-		if x_b < 0:
-			x_b = 0
-		if x_e >= max_pos[0]:
-			x_e = max_pos[0]
-		if y_b < 0:
-			y_b = 0
-		if y_e >= max_pos[1]:
-			y_e = max_pos[1]
-		x_pos  = x_b
-		y_pos  = y_b
+		x_b, x_e = self.gen_bound(x, size, 0, max_pos[0])
+		y_b, y_e = self.gen_bound(y, size, 0, max_pos[1])
+
+		x_pos, y_pos = x_b, y_b
 		width  = x_e - x_b
 		height = y_e - y_b
 		region = (x_pos, y_pos, width, height)
 		im = pyautogui.screenshot(region = region)
 
 		sumall = 0
-		for i in range(x_b, x_e):
-			for j in range(y_b, y_e):
+		for y in range(y_b, y_e):
+			for x in range(x_b, x_e):
 				#print(region)
 				#print(i, j)
-				color = im.getpixel((i - x_b, j - y_b))
+				color = im.getpixel((x - x_b, y - y_b))
 				sumall += (color[0]*255 +color[1])*255 + color[2]
 		return sumall
 
@@ -175,6 +166,7 @@ class PyAuto(object):
 				ttype = input("type: ").strip()
 				if ttype == "exit":
 					break
+				name = input("name: ").strip()
 				old_data = repr(self.conf_map[ttype][name])
 				self.set_conf_map(ttype, name)
 				print("  change(%s.%s) %s -> (%s)"%(ttype, name, old_data, repr(self.conf_map[ttype][name])))
@@ -396,6 +388,16 @@ class PyAuto(object):
 		args = self.wrap_args(args)
 		return pyautogui.click(*args, **kwrds)
 
+	def rclick(self, *args, **kwrds):
+		args = self.wrap_args(args)
+		kwrds["button"] = "right"
+		return pyautogui.click(*args, **kwrds)
+
+	def lclick(self, *args, **kwrds):
+		args = self.wrap_args(args)
+		kwrds["button"] = "left"
+		return pyautogui.click(*args, **kwrds)
+
 	def pixel(self, *args, **kwrds):
 		args = self.wrap_args(args)
 		return pyautogui.pixel(*args, **kwrds)
@@ -406,6 +408,42 @@ class PyAuto(object):
 
 	def appendfile(self, filename, data, md = "a+", encoding = "utf-8"):
 		self.writefile(filename, data, md, encoding)
+
+	def getAreaColorList(self, pos, except_list = [], size = 10):
+		pos = self.wrap_pos(pos)
+		x = pos[0]
+		y = pos[1]
+		max_pos = pyautogui.size()
+		x_b, x_e = self.gen_bound(x, size, 0, max_pos[0])
+		y_b, y_e = self.gen_bound(y, size, 0, max_pos[1])
+		x_pos, y_pos  = x_b, y_b
+		width  = x_e - x_b
+		height = y_e - y_b
+		region = (x_pos, y_pos, width, height)
+		#print("pos:", pos)
+		#print("region:", region)
+		im = pyautogui.screenshot(region = region)
+
+		sumall = 0
+		color_list = []
+		for y in range(y_b, y_e):
+			for x in range(x_b, x_e):
+				color = im.getpixel((x - x_b, y - y_b))
+				items = (color[0], color[1], color[2])
+				if items in except_list:
+					continue
+				if items in color_list:
+					continue
+				#print(items, except_list)
+				color_list.append(items)
+		return color_list
+
+	def areaColorContains(self, pos, color):
+		color_list = self.getAreaColorList(pos)
+		if color in color_list:
+			return True
+		else:
+			return False
 
 	def get_pic(self, b_pos = None, e_pos = None):
 		b_pos = self.wrap_pos(b_pos)
@@ -429,58 +467,16 @@ class PyAuto(object):
 		#im = pyautogui.screenshot()
 		im.save(img_path)
 
-def test():
-	pyauto = PyAuto()
-	pyauto.gen_config()
-	conf_map = pyauto.load_config("test.conf")
-	print(conf_map)
-	#input(":")
-	username = "tesd@qq.com"
-	password = "qwe"
-
-	flush_pos = pyauto.get_pos("flush")
-
-	pic_pos1 = pyauto.get_pos("pic_b")
-	pic_pos2 = pyauto.get_pos("pic_e")
-
-	pyauto.moveTo("flush")
-	pyauto.click()
-	time.sleep(1)
-
-	pyauto.moveTo("ready")
-	while True:
-		if pyauto.areaMatchesColorEx("ready") == True:
-			print("ready")
-			break
-		print("in flush")
-		time.sleep(1)
-
-	pyauto.moveTo(flush_pos[0], flush_pos[1] + 0x200)
-	time.sleep(1)
-
-	pyauto.write_text(username, "user")#pyauto.get_pos("user"))
-	pyauto.write_text(password, "pass")#pyauto.get_pos("pass"))
-
-	#key_pos = pyauto.get_pos("enter")
-
-	pyauto.moveTo("enter", duration=2, tween=pyautogui.easeOutQuad)
-	pyauto.click()
-
-	time.sleep(2)
-	while True:
-		if pyauto.pixelMatchesColorEx("warn") == True:
-			#text = pyauto.get_text("warn", "warn_e")#, lang = 'chi_sim', img_path = "chk.png")
-			#print("text:", text)
-			break
-		print("check fail, continue")
-		time.sleep(1)
-
-	if pyauto.pixelMatchesColorEx("error", "error") == True:
-		print("get res ok")
-	else:
-		print("401 find")
-
-	pyauto.save_pic(pic_pos1, pic_pos2, img_path = "%s.png"%username)
+	def gen_bound(self, x, size, min_v, max_v):
+		x_b = x - size
+		x_e = x + size
+		if x_b < min_v:
+			x_b = min_v
+		if x_e > max_v:
+			x_e = max_v
+		return x_b, x_e
 
 if __name__ == "__main__":
-	test()
+	#test()
+	#mine_sweep()
+	pass

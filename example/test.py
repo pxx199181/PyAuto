@@ -1,4 +1,5 @@
 from PyAuto import PyAuto
+import time
 
 def test():
 	pyauto = PyAuto()
@@ -6,8 +7,8 @@ def test():
 	conf_map = pyauto.load_config("test.conf")
 	print(conf_map)
 	#input(":")
-	username = "tesd@qq.com"
-	password = "qwe"
+	username = "test@qq.com"
+	password = "123456"
 
 	flush_pos = pyauto.get_pos("flush")
 
@@ -34,7 +35,7 @@ def test():
 
 	#key_pos = pyauto.get_pos("enter")
 
-	pyauto.moveTo("enter", duration=2, tween=pyautogui.easeOutQuad)
+	pyauto.moveTo("enter", duration=2, tween=pyauto.easeOutQuad)
 	pyauto.click()
 
 	time.sleep(2)
