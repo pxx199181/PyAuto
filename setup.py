@@ -9,7 +9,7 @@ def gen_data_files(*dirs):
             results.append((root, map(lambda f:root + "/" + f, files)))
     return results
 
-data_files = gen_data_files("PyAuto")
+data_files = gen_data_files("PyAuto/lib")
 
 setup(
     name = 'PyAuto',
@@ -17,7 +17,7 @@ setup(
     description = 'python auto tools',
     license = 'GPL',
     packages = find_packages(exclude = ['contrib', 'docs', 'tests*']),
-    #install_requires = ['pwntools'],
+    install_requires = ['pyautogui'],
     author = 'pxx',
     data_files = data_files,
     author_email = 'pxx1991824@gmail.com',
