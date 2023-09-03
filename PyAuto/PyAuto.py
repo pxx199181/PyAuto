@@ -116,7 +116,7 @@ class PyAuto(object):
 		return t_sumall == sumall
 
 	def set_conf_map(self, ttype, name):
-		x, y = pyautogui.position()
+		x, y = self.set_pos()
 		if ttype == "pos":
 			print(self.conf_map[ttype][name], [x, y])
 			self.conf_map[ttype][name] = [x, y]
@@ -188,6 +188,21 @@ class PyAuto(object):
 						value = None
 					self.set_conf_file(conf_file, ttype, name, x, y, value)
 
+	def set_pos(self):
+		pos_str = input("pos: ").strip()
+		pos_str = pos_str.replace(",", " ")
+		pos_str = pos_str.replace(";", " ")
+		pos_str = pos_str.replace("\t", " ")
+		pos_str = pos_str.strip()
+		items = pos_str.split(" ")
+		if len(items) > 1:
+			x, y = int(items[0]), int(items[-1])
+		else:
+			x, y = pyautogui.position()
+
+
+		return x, y
+
 	def gen_config(self):
 		conf_file = ""
 		while True:
@@ -227,7 +242,7 @@ class PyAuto(object):
 					name = input("name:")
 					if name == "exit":
 						break
-					x, y = pyautogui.position()
+					x, y = self.set_pos()
 					self.set_conf_file(conf_file, "pos", name, x, y)
 
 			elif choice == 3:
@@ -235,7 +250,7 @@ class PyAuto(object):
 					name = input("name:")
 					if name == "exit":
 						break
-					x, y = pyautogui.position()
+					x, y = self.set_pos()
 					color = pyautogui.pixel(x, y)
 					self.set_conf_file(conf_file, "color", name, x, y, color)
 
@@ -244,7 +259,7 @@ class PyAuto(object):
 					name = input("name:")
 					if name == "exit":
 						break
-					x, y = pyautogui.position()
+					x, y = self.set_pos()
 					sumall = self.calc_sumall((x, y))
 					self.set_conf_file(conf_file, "area", name, x, y, sumall)
 
